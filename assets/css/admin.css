@@ -1,0 +1,214 @@
+/**
+ * Estilos CSS para o admin do plugin DW Verificação de Peso
+ *
+ * @package DW_Verifica_Peso
+ * @version 0.1.0
+ */
+
+/* Configurações gerais */
+.dw-verifica-peso-settings,
+.dw-verifica-peso-report {
+    max-width: 1200px;
+}
+
+.dw-verifica-peso-settings h1,
+.dw-verifica-peso-report h1 {
+    margin-bottom: 20px;
+}
+
+/* Seções do relatório */
+.dw-verifica-peso-section {
+    margin: 30px 0;
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.dw-verifica-peso-section h2 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e5e5e5;
+}
+
+/* Coluna de peso na lista de produtos */
+.column-peso_produto {
+    width: 120px;
+    text-align: center;
+}
+
+/* Mensagens de sucesso */
+.dw-verifica-peso-success {
+    padding: 15px;
+    background: #d4edda;
+    border-left: 4px solid #28a745;
+    color: #155724;
+    font-size: 14px;
+}
+
+/* Box de informações */
+.dw-verifica-peso-info-box {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f0f6fc;
+    border-left: 4px solid #2271b1;
+}
+
+.dw-verifica-peso-info-box h2 {
+    margin-top: 0;
+}
+
+.dw-verifica-peso-info-box ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.dw-verifica-peso-info-box li {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+/* Summary */
+.dw-verifica-peso-summary {
+    margin: 20px 0;
+}
+
+/* Tabelas */
+.dw-verifica-peso-section table {
+    margin-top: 15px;
+}
+
+.dw-verifica-peso-section table th {
+    font-weight: 600;
+}
+
+.dw-verifica-peso-section table code {
+    background: #f5f5f5;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* Botões */
+.dw-verifica-peso-section .button {
+    margin-right: 5px;
+}
+
+/* Ações em massa */
+.dw-bulk-actions {
+    padding: 10px 0;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.dw-bulk-actions select {
+    margin-right: 5px;
+}
+
+.dw-selected-count {
+    color: #0073aa;
+    font-weight: 600;
+}
+
+#dw-peso-customizado-wrapper {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    background: #f0f6fc;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+}
+
+#dw-peso-customizado-wrapper label {
+    margin-bottom: 0;
+    font-weight: normal;
+}
+
+#dw-peso-customizado-wrapper .description {
+    display: inline-block;
+    margin-left: 10px;
+}
+
+/* Edição rápida */
+.dw-quick-edit-cell {
+    position: relative;
+}
+
+.dw-quick-edit-wrapper {
+    display: flex;
+    align-items: center;
+}
+
+.dw-quick-edit-peso {
+    border: 1px solid #8c8f94;
+    border-radius: 3px;
+}
+
+.dw-quick-edit-peso:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: 2px solid transparent;
+}
+
+.dw-quick-edit-unit {
+    margin-left: 5px;
+    color: #646970;
+    font-size: 13px;
+}
+
+.dw-quick-edit-save {
+    padding: 2px 8px !important;
+    min-width: auto;
+    height: auto;
+}
+
+.dw-quick-edit-status {
+    font-size: 12px;
+    min-width: 100px;
+    display: inline-block;
+}
+
+.dw-quick-edit-status .spinner {
+    margin: 0 !important;
+}
+
+/* Tabela com checkboxes */
+.dw-produtos-table .check-column {
+    width: 2.2em;
+    padding: 11px 0 0 3px;
+}
+
+.dw-produtos-table .check-column input[type="checkbox"] {
+    margin: 0;
+}
+
+/* Mensagens de notificação */
+.dw-verifica-peso-summary + .notice {
+    margin: 15px 0;
+}
+
+/* Responsividade */
+@media screen and (max-width: 782px) {
+    .dw-verifica-peso-section {
+        padding: 15px;
+    }
+    
+    .column-peso_produto {
+        display: none;
+    }
+    
+    .dw-quick-edit-wrapper {
+        flex-wrap: wrap;
+    }
+    
+    .dw-quick-edit-status {
+        width: 100%;
+        margin-top: 5px;
+        margin-left: 0 !important;
+    }
+}
+
