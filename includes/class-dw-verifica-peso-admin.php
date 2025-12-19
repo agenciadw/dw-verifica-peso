@@ -991,6 +991,14 @@ class DW_Verifica_Peso_Admin {
 
         global $wpdb;
 
+        // Carrega validadores para obter limites
+        $validator = DW_Verifica_Peso_Validator::instance();
+        $peso_maximo = $validator->get_peso_maximo();
+        $peso_minimo = $validator->get_peso_minimo();
+        
+        $validator_dimensoes = DW_Verifica_Peso_Validator_Dimensoes::instance();
+        $limites_dimensoes = $validator_dimensoes->get_limites();
+
         // Busca produtos sem peso OU sem dimensões
         // Primeiro busca IDs de produtos sem peso
         $produtos_sem_peso = $wpdb->get_col("
@@ -1018,12 +1026,61 @@ class DW_Verifica_Peso_Admin {
             )
         ");
 
+        // Busca IDs de produtos com peso acima do limite
+        $produtos_peso_acima = $wpdb->get_col($wpdb->prepare("
+            SELECT DISTINCT p.ID
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_weight'
+            WHERE p.post_type = 'product' 
+            AND p.post_status IN ('publish', 'draft', 'pending')
+            AND pm.meta_value != ''
+            AND (CAST(pm.meta_value AS DECIMAL(10,3)) > %f OR CAST(pm.meta_value AS DECIMAL(10,3)) < %f)
+        ", $peso_maximo, $peso_minimo));
+
+        // Busca IDs de produtos com dimensões acima do limite (com flag de alerta ou verificando diretamente)
+        // Primeiro busca os que têm flag de alerta
+        $produtos_dimensoes_com_flag = $wpdb->get_col("
+            SELECT DISTINCT p.ID
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_dw_dimensoes_alerta'
+            WHERE p.post_type = 'product' 
+            AND p.post_status IN ('publish', 'draft', 'pending')
+        ");
+        
+        // Também busca produtos com dimensões fora dos limites diretamente (mesmo sem flag)
+        $produtos_dimensoes_diretos = $wpdb->get_col($wpdb->prepare("
+            SELECT DISTINCT p.ID
+            FROM {$wpdb->posts} p
+            LEFT JOIN {$wpdb->postmeta} pm_length ON p.ID = pm_length.post_id AND pm_length.meta_key = '_length'
+            LEFT JOIN {$wpdb->postmeta} pm_width ON p.ID = pm_width.post_id AND pm_width.meta_key = '_width'
+            LEFT JOIN {$wpdb->postmeta} pm_height ON p.ID = pm_height.post_id AND pm_height.meta_key = '_height'
+            WHERE p.post_type = 'product' 
+            AND p.post_status IN ('publish', 'draft', 'pending')
+            AND (
+                (pm_length.meta_value != '' AND (CAST(pm_length.meta_value AS DECIMAL(10,2)) > %f OR CAST(pm_length.meta_value AS DECIMAL(10,2)) < %f)) OR
+                (pm_width.meta_value != '' AND (CAST(pm_width.meta_value AS DECIMAL(10,2)) > %f OR CAST(pm_width.meta_value AS DECIMAL(10,2)) < %f)) OR
+                (pm_height.meta_value != '' AND (CAST(pm_height.meta_value AS DECIMAL(10,2)) > %f OR CAST(pm_height.meta_value AS DECIMAL(10,2)) < %f))
+            )
+        ", 
+            $limites_dimensoes['comprimento']['max'], $limites_dimensoes['comprimento']['min'],
+            $limites_dimensoes['largura']['max'], $limites_dimensoes['largura']['min'],
+            $limites_dimensoes['altura']['max'], $limites_dimensoes['altura']['min']
+        ));
+        
+        // Combina os dois resultados
+        $produtos_dimensoes_acima = array_unique(array_merge($produtos_dimensoes_com_flag, $produtos_dimensoes_diretos));
+
         // Combina os IDs (remove duplicatas)
-        $produto_ids = array_unique(array_merge($produtos_sem_peso, $produtos_sem_dimensoes));
+        $produto_ids = array_unique(array_merge(
+            $produtos_sem_peso, 
+            $produtos_sem_dimensoes,
+            $produtos_peso_acima,
+            $produtos_dimensoes_acima
+        ));
 
         if (empty($produto_ids)) {
             // Se não houver produtos, gera CSV vazio apenas com cabeçalhos
-            $filename = 'produtos-sem-peso-ou-medidas-' . date('Y-m-d-H-i-s') . '.csv';
+            $filename = 'produtos-com-problemas-' . date('Y-m-d-H-i-s') . '.csv';
             header('Content-Type: text/csv; charset=UTF-8');
             header('Content-Disposition: attachment; filename="' . $filename . '"');
             header('Pragma: no-cache');
@@ -1070,7 +1127,7 @@ class DW_Verifica_Peso_Admin {
         $produtos = $wpdb->get_results($query);
 
         // Prepara o nome do arquivo
-        $filename = 'produtos-sem-peso-ou-medidas-' . date('Y-m-d-H-i-s') . '.csv';
+        $filename = 'produtos-com-problemas-' . date('Y-m-d-H-i-s') . '.csv';
 
         // Define headers para download CSV
         header('Content-Type: text/csv; charset=UTF-8');
@@ -1107,19 +1164,67 @@ class DW_Verifica_Peso_Admin {
                 continue;
             }
 
-            $peso = $item->peso ? number_format(floatval($item->peso), 3, ',', '.') : '';
-            $largura = $item->largura ? number_format(floatval($item->largura), 2, ',', '.') : '';
-            $altura = $item->altura ? number_format(floatval($item->altura), 2, ',', '.') : '';
-            $comprimento = $item->comprimento ? number_format(floatval($item->comprimento), 2, ',', '.') : '';
+            $peso_float = $item->peso ? floatval($item->peso) : 0;
+            $peso = $item->peso ? number_format($peso_float, 3, ',', '.') : '';
+            $largura_float = $item->largura ? floatval($item->largura) : 0;
+            $largura = $item->largura ? number_format($largura_float, 2, ',', '.') : '';
+            $altura_float = $item->altura ? floatval($item->altura) : 0;
+            $altura = $item->altura ? number_format($altura_float, 2, ',', '.') : '';
+            $comprimento_float = $item->comprimento ? floatval($item->comprimento) : 0;
+            $comprimento = $item->comprimento ? number_format($comprimento_float, 2, ',', '.') : '';
             $sku = $item->sku ? $item->sku : '';
 
             // Determina os problemas
             $problemas = array();
             if (!$peso || $peso === '') {
                 $problemas[] = esc_html__('Sem peso', 'dw-verifica-peso');
+            } elseif ($peso_float > 0) {
+                // Verifica se o peso está acima ou abaixo dos limites
+                if ($peso_float > $peso_maximo) {
+                    $problemas[] = sprintf(
+                        esc_html__('Peso acima do máximo (%s kg)', 'dw-verifica-peso'),
+                        number_format($peso_maximo, 3, ',', '.')
+                    );
+                } elseif ($peso_float < $peso_minimo) {
+                    $problemas[] = sprintf(
+                        esc_html__('Peso abaixo do mínimo (%s kg)', 'dw-verifica-peso'),
+                        number_format($peso_minimo, 3, ',', '.')
+                    );
+                }
             }
+            
+            // Verifica dimensões
             if ((!$largura || $largura === '') && (!$altura || $altura === '') && (!$comprimento || $comprimento === '')) {
                 $problemas[] = esc_html__('Sem medidas', 'dw-verifica-peso');
+            } else {
+                // Verifica se alguma dimensão está fora dos limites
+                if ($largura_float > 0) {
+                    if ($largura_float > $limites_dimensoes['largura']['max'] || $largura_float < $limites_dimensoes['largura']['min']) {
+                        $problemas[] = sprintf(
+                            esc_html__('Largura fora dos limites (%s - %s cm)', 'dw-verifica-peso'),
+                            number_format($limites_dimensoes['largura']['min'], 2, ',', '.'),
+                            number_format($limites_dimensoes['largura']['max'], 2, ',', '.')
+                        );
+                    }
+                }
+                if ($altura_float > 0) {
+                    if ($altura_float > $limites_dimensoes['altura']['max'] || $altura_float < $limites_dimensoes['altura']['min']) {
+                        $problemas[] = sprintf(
+                            esc_html__('Altura fora dos limites (%s - %s cm)', 'dw-verifica-peso'),
+                            number_format($limites_dimensoes['altura']['min'], 2, ',', '.'),
+                            number_format($limites_dimensoes['altura']['max'], 2, ',', '.')
+                        );
+                    }
+                }
+                if ($comprimento_float > 0) {
+                    if ($comprimento_float > $limites_dimensoes['comprimento']['max'] || $comprimento_float < $limites_dimensoes['comprimento']['min']) {
+                        $problemas[] = sprintf(
+                            esc_html__('Comprimento fora dos limites (%s - %s cm)', 'dw-verifica-peso'),
+                            number_format($limites_dimensoes['comprimento']['min'], 2, ',', '.'),
+                            number_format($limites_dimensoes['comprimento']['max'], 2, ',', '.')
+                        );
+                    }
+                }
             }
 
             $problemas_str = implode(', ', $problemas);

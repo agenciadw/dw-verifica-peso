@@ -65,10 +65,10 @@ $produtos_sem_peso = $wpdb->get_results("
         <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('dw_export_csv' => '1'), admin_url('admin.php?page=dw-verificar-pesos')), 'dw_export_csv')); ?>" 
            class="button button-primary button-large">
             <span class="dashicons dashicons-download" style="vertical-align: middle; margin-top: 4px;"></span>
-            <?php esc_html_e('📥 Exportar CSV - Produtos Sem Peso ou Sem Medidas', 'dw-verifica-peso'); ?>
+            <?php esc_html_e('📥 Exportar CSV - Produtos com Problemas', 'dw-verifica-peso'); ?>
         </a>
         <p class="description" style="margin-top: 10px;">
-            <?php esc_html_e('Exporta todos os produtos que estão sem peso OU sem medidas (largura, altura e comprimento) em um arquivo CSV.', 'dw-verifica-peso'); ?>
+            <?php esc_html_e('Exporta todos os produtos que estão sem peso, sem medidas, com peso acima/abaixo dos limites ou com medidas acima/abaixo dos limites em um arquivo CSV.', 'dw-verifica-peso'); ?>
         </p>
     </div>
     
