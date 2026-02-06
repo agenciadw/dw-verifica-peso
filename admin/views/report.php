@@ -61,13 +61,24 @@ $produtos_sem_peso = $wpdb->get_results("
 <div class="wrap dw-verifica-peso-report">
     <h1><?php echo esc_html__('📊 Relatório de Verificação de Pesos e Dimensões', 'dw-verifica-peso'); ?></h1>
     
-    <div style="margin: 20px 0;">
+    <div style="margin: 20px 0; display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-start;">
+        <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('dw_reanalisar' => '1'), admin_url('admin.php?page=dw-verificar-pesos')), 'dw_reanalisar_produtos')); ?>" 
+           class="button button-secondary button-large"
+           onclick="return confirm('<?php echo esc_js(__('Esta ação irá verificar todos os produtos e atualizar os alertas conforme os dados atuais de peso e dimensões. Produtos que já foram corrigidos deixarão de aparecer nas notificações. Deseja continuar?', 'dw-verifica-peso')); ?>">
+            <span class="dashicons dashicons-update" style="vertical-align: middle; margin-top: 4px;"></span>
+            <?php esc_html_e('🔄 Reanalisar Produtos', 'dw-verifica-peso'); ?>
+        </a>
         <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('dw_export_csv' => '1'), admin_url('admin.php?page=dw-verificar-pesos')), 'dw_export_csv')); ?>" 
            class="button button-primary button-large">
             <span class="dashicons dashicons-download" style="vertical-align: middle; margin-top: 4px;"></span>
             <?php esc_html_e('📥 Exportar CSV - Produtos com Problemas', 'dw-verifica-peso'); ?>
         </a>
-        <p class="description" style="margin-top: 10px;">
+        <p class="description" style="margin-top: 10px; width: 100%;">
+            <strong><?php esc_html_e('Reanalisar:', 'dw-verifica-peso'); ?></strong>
+            <?php esc_html_e('Verifica todos os produtos com base nos dados atuais de peso e dimensões. Remove alertas de produtos já corrigidos e adiciona alertas em produtos com divergências.', 'dw-verifica-peso'); ?>
+        </p>
+        <p class="description" style="margin-top: 0; width: 100%;">
+            <strong><?php esc_html_e('Exportar CSV:', 'dw-verifica-peso'); ?></strong>
             <?php esc_html_e('Exporta todos os produtos que estão sem peso, sem medidas, com peso acima/abaixo dos limites ou com medidas acima/abaixo dos limites em um arquivo CSV.', 'dw-verifica-peso'); ?>
         </p>
     </div>
@@ -81,6 +92,19 @@ $produtos_sem_peso = $wpdb->get_results("
             <?php elseif ($_GET['message'] === 'no_selection'): ?>
                 <div class="notice notice-warning is-dismissible">
                     <p><strong>⚠️</strong> <?php esc_html_e('Nenhum produto foi selecionado.', 'dw-verifica-peso'); ?></p>
+                </div>
+            <?php elseif ($_GET['message'] === 'reanalise_success'): ?>
+                <div class="notice notice-success is-dismissible">
+                    <p><strong>✅</strong> <?php esc_html_e('Reanálise concluída com sucesso!', 'dw-verifica-peso'); ?></p>
+                    <p>
+                        <?php
+                        $alterados = isset($_GET['reanalise_alterados']) ? intval($_GET['reanalise_alterados']) : 0;
+                        printf(
+                            esc_html(_n('%d produto teve suas flags de alerta atualizadas.', '%d produtos tiveram suas flags de alerta atualizadas.', $alterados, 'dw-verifica-peso')),
+                            $alterados
+                        );
+                        ?>
+                    </p>
                 </div>
             <?php endif; ?>
         <?php endif; ?>

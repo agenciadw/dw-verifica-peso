@@ -74,6 +74,9 @@ class DW_Verifica_Peso_Admin {
         
         // Handler para exportação CSV
         add_action('admin_init', array($this, 'exportar_csv_produtos'));
+
+        // Handler para reanálise de produtos
+        add_action('admin_init', array($this, 'processar_reanalise_produtos'));
     }
 
     /**
@@ -1259,6 +1262,193 @@ class DW_Verifica_Peso_Admin {
 
         fclose($output);
         exit;
+    }
+
+    /**
+     * Processa a reanálise de todos os produtos
+     */
+    public function processar_reanalise_produtos() {
+        // Verifica se é uma solicitação de reanálise
+        if (!isset($_GET['dw_reanalisar']) || $_GET['dw_reanalisar'] !== '1') {
+            return;
+        }
+
+        // Verifica permissões
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die(esc_html__('Você não tem permissão para realizar esta ação.', 'dw-verifica-peso'));
+        }
+
+        // Verifica nonce
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'dw_reanalisar_produtos')) {
+            wp_die(esc_html__('Verificação de segurança falhou.', 'dw-verifica-peso'));
+        }
+
+        $resultado = $this->reanalisar_todos_produtos();
+
+        wp_redirect(add_query_arg(array(
+            'page' => 'dw-verificar-pesos',
+            'message' => 'reanalise_success',
+            'reanalise_alterados' => $resultado['total_alterados']
+        ), admin_url('admin.php')));
+        exit;
+    }
+
+    /**
+     * Reanalisa todos os produtos e atualiza as flags de divergência conforme os dados atuais
+     *
+     * @return array Estatísticas da reanálise (total_processados, total_alterados)
+     */
+    public function reanalisar_todos_produtos() {
+        global $wpdb;
+
+        $validator = DW_Verifica_Peso_Validator::instance();
+        $validator_dimensoes = DW_Verifica_Peso_Validator_Dimensoes::instance();
+
+        $peso_maximo = $validator->get_peso_maximo();
+        $peso_minimo = $validator->get_peso_minimo();
+        $limites = $validator_dimensoes->get_limites();
+
+        // Busca todos os IDs de produtos (simples e variáveis pai)
+        $produto_ids = $wpdb->get_col("
+            SELECT ID FROM {$wpdb->posts}
+            WHERE post_type = 'product'
+            AND post_status IN ('publish', 'draft', 'pending')
+            AND post_parent = 0
+        ");
+
+        $total_alterados = 0;
+
+        foreach ($produto_ids as $product_id) {
+            $produto = wc_get_product($product_id);
+            if (!$produto) {
+                continue;
+            }
+
+            $alterado = false;
+
+            // === PESO ===
+            $peso = $produto->get_weight();
+
+            if (!$peso || $peso === '' || $peso === null) {
+                // Produto sem peso - deve ter flag _dw_produto_sem_peso e não _dw_peso_alerta
+                $tinha_sem_peso = get_post_meta($product_id, '_dw_produto_sem_peso', true);
+                $tinha_alerta = get_post_meta($product_id, '_dw_peso_alerta', true);
+
+                if (!$tinha_sem_peso || $tinha_alerta) {
+                    update_post_meta($product_id, '_dw_produto_sem_peso', '1');
+                    update_post_meta($product_id, '_dw_produto_sem_peso_data', current_time('mysql'));
+                    delete_post_meta($product_id, '_dw_peso_alerta');
+                    delete_post_meta($product_id, '_dw_peso_alerta_data');
+                    $alterado = true;
+                }
+            } else {
+                $peso_float = floatval(str_replace(',', '.', $peso));
+
+                if ($peso_float > $peso_maximo || $peso_float < $peso_minimo) {
+                    // Peso fora dos limites - deve ter flag _dw_peso_alerta e não _dw_produto_sem_peso
+                    $tinha_alerta = get_post_meta($product_id, '_dw_peso_alerta', true);
+                    $peso_atual_flag = $tinha_alerta ? floatval($tinha_alerta) : null;
+
+                    if (!$tinha_alerta || abs($peso_atual_flag - $peso_float) > 0.0001) {
+                        update_post_meta($product_id, '_dw_peso_alerta', $peso_float);
+                        update_post_meta($product_id, '_dw_peso_alerta_data', current_time('mysql'));
+                        delete_post_meta($product_id, '_dw_produto_sem_peso');
+                        delete_post_meta($product_id, '_dw_produto_sem_peso_data');
+                        $alterado = true;
+                    }
+                } else {
+                    // Peso OK - remover todas as flags
+                    if (get_post_meta($product_id, '_dw_produto_sem_peso', true) || get_post_meta($product_id, '_dw_peso_alerta', true)) {
+                        delete_post_meta($product_id, '_dw_produto_sem_peso');
+                        delete_post_meta($product_id, '_dw_produto_sem_peso_data');
+                        delete_post_meta($product_id, '_dw_peso_alerta');
+                        delete_post_meta($product_id, '_dw_peso_alerta_data');
+                        $alterado = true;
+                    }
+                }
+            }
+
+            // === DIMENSÕES ===
+            $largura = $produto->get_width();
+            $altura = $produto->get_height();
+            $comprimento = $produto->get_length();
+
+            $sem_dimensoes = (!$largura || $largura === '') && (!$altura || $altura === '') && (!$comprimento || $comprimento === '');
+
+            if ($sem_dimensoes) {
+                $tinha_sem_dimensoes = get_post_meta($product_id, '_dw_produto_sem_dimensoes', true);
+                $tinha_dimensoes_alerta = get_post_meta($product_id, '_dw_dimensoes_alerta', true);
+
+                if (!$tinha_sem_dimensoes || $tinha_dimensoes_alerta) {
+                    update_post_meta($product_id, '_dw_produto_sem_dimensoes', '1');
+                    update_post_meta($product_id, '_dw_produto_sem_dimensoes_data', current_time('mysql'));
+                    delete_post_meta($product_id, '_dw_dimensoes_alerta');
+                    delete_post_meta($product_id, '_dw_dimensoes_alerta_data');
+                    $alterado = true;
+                }
+            } else {
+                $tem_problema = false;
+                $dados_alerta = array();
+
+                if ($largura && $largura !== '') {
+                    $largura_float = floatval($largura);
+                    if ($largura_float > $limites['largura']['max'] || $largura_float < $limites['largura']['min']) {
+                        $tem_problema = true;
+                        $dados_alerta['largura'] = $largura_float;
+                    }
+                }
+                if ($altura && $altura !== '') {
+                    $altura_float = floatval($altura);
+                    if ($altura_float > $limites['altura']['max'] || $altura_float < $limites['altura']['min']) {
+                        $tem_problema = true;
+                        $dados_alerta['altura'] = $altura_float;
+                    }
+                }
+                if ($comprimento && $comprimento !== '') {
+                    $comprimento_float = floatval($comprimento);
+                    if ($comprimento_float > $limites['comprimento']['max'] || $comprimento_float < $limites['comprimento']['min']) {
+                        $tem_problema = true;
+                        $dados_alerta['comprimento'] = $comprimento_float;
+                    }
+                }
+
+                if ($tem_problema) {
+                    $dados_atuais = maybe_serialize($dados_alerta);
+                    $dados_anteriores = get_post_meta($product_id, '_dw_dimensoes_alerta', true);
+
+                    if ($dados_anteriores !== $dados_atuais) {
+                        update_post_meta($product_id, '_dw_dimensoes_alerta', $dados_atuais);
+                        update_post_meta($product_id, '_dw_dimensoes_alerta_data', current_time('mysql'));
+                        delete_post_meta($product_id, '_dw_produto_sem_dimensoes');
+                        delete_post_meta($product_id, '_dw_produto_sem_dimensoes_data');
+                        $alterado = true;
+                    }
+                } else {
+                    if (get_post_meta($product_id, '_dw_produto_sem_dimensoes', true) || get_post_meta($product_id, '_dw_dimensoes_alerta', true)) {
+                        delete_post_meta($product_id, '_dw_produto_sem_dimensoes');
+                        delete_post_meta($product_id, '_dw_produto_sem_dimensoes_data');
+                        delete_post_meta($product_id, '_dw_dimensoes_alerta');
+                        delete_post_meta($product_id, '_dw_dimensoes_alerta_data');
+                        $alterado = true;
+                    }
+                }
+            }
+
+            if ($alterado) {
+                $total_alterados++;
+            }
+        }
+
+        // Limpa caches
+        delete_transient('dw_peso_produtos_sem_peso');
+        delete_transient('dw_peso_produtos_anormais');
+        delete_transient('dw_dimensoes_produtos_sem');
+        delete_transient('dw_dimensoes_produtos_anormais');
+
+        return array(
+            'total_processados' => count($produto_ids),
+            'total_alterados' => $total_alterados
+        );
     }
 }
 
