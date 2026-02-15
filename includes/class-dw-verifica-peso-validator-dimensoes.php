@@ -249,10 +249,6 @@ class DW_Verifica_Peso_Validator_Dimensoes {
 
         if ($tem_problema) {
             $this->registrar_alerta($post_id, $dados_alerta);
-            
-            // Envia e-mail de alerta
-            $email_handler = DW_Verifica_Peso_Email::instance();
-            $email_handler->enviar_email_alerta_dimensoes($post_id, $dados_alerta);
         } else {
             // Remove flag de alerta se as dimensões foram corrigidas
             delete_post_meta($post_id, '_dw_dimensoes_alerta');
@@ -297,10 +293,6 @@ class DW_Verifica_Peso_Validator_Dimensoes {
 
         if ($sem_dimensoes) {
             $this->registrar_produto_sem_dimensoes($post_id);
-            
-            // Envia e-mail de alerta para produto sem dimensões
-            $email_handler = DW_Verifica_Peso_Email::instance();
-            $email_handler->enviar_email_sem_dimensoes($post_id);
         } else {
             // Remove flag se as dimensões foram adicionadas
             delete_post_meta($post_id, '_dw_produto_sem_dimensoes');

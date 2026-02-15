@@ -227,6 +227,27 @@ class DW_Verifica_Peso_Admin {
                 'default'           => 100
             )
         );
+
+        // Frequência de notificações por e-mail
+        register_setting(
+            'dw_peso_config',
+            'dw_peso_frequencia_email',
+            array(
+                'type'              => 'string',
+                'sanitize_callback' => 'sanitize_text_field',
+                'default'           => 'diario'
+            )
+        );
+
+        register_setting(
+            'dw_peso_config',
+            'dw_peso_email_hora',
+            array(
+                'type'              => 'int',
+                'sanitize_callback' => 'absint',
+                'default'           => 8
+            )
+        );
     }
 
     /**
@@ -368,6 +389,19 @@ class DW_Verifica_Peso_Admin {
         update_option('dw_dimensao_altura_max', $dimensao_altura_max);
         update_option('dw_dimensao_comprimento_min', $dimensao_comprimento_min);
         update_option('dw_dimensao_comprimento_max', $dimensao_comprimento_max);
+
+        // Frequência e horário de e-mail
+        $frequencia = isset($_POST['dw_peso_frequencia_email']) ? sanitize_text_field($_POST['dw_peso_frequencia_email']) : 'diario';
+        if (!in_array($frequencia, array('diario', 'semanal', 'mensal', 'nenhum'))) {
+            $frequencia = 'diario';
+        }
+        $hora = isset($_POST['dw_peso_email_hora']) ? absint($_POST['dw_peso_email_hora']) : 8;
+        $hora = min(23, max(0, $hora));
+        update_option('dw_peso_frequencia_email', $frequencia);
+        update_option('dw_peso_email_hora', $hora);
+
+        // Reagenda o cron conforme a frequência
+        $this->agendar_email_resumo($frequencia, $hora);
 
         // Limpa cache
         delete_transient('dw_peso_produtos_sem_peso');
@@ -813,10 +847,6 @@ class DW_Verifica_Peso_Admin {
                 // Adiciona flag de alerta
                 update_post_meta($product_id, '_dw_peso_alerta', $peso_float);
                 update_post_meta($product_id, '_dw_peso_alerta_data', current_time('mysql'));
-                
-                // Envia e-mail
-                $email_handler = DW_Verifica_Peso_Email::instance();
-                $email_handler->enviar_email_alerta($product_id, $peso_float);
             } else {
                 // Remove flags de alerta
                 delete_post_meta($product_id, '_dw_peso_alerta');
@@ -1449,6 +1479,34 @@ class DW_Verifica_Peso_Admin {
             'total_processados' => count($produto_ids),
             'total_alterados' => $total_alterados
         );
+    }
+
+    /**
+     * Agenda ou desagenda o envio do e-mail de resumo consolidado
+     *
+     * @param string $frequencia diario, semanal, mensal ou nenhum
+     * @param int    $hora       Hora do dia (0-23)
+     */
+    public function agendar_email_resumo($frequencia = null, $hora = null) {
+        $frequencia = $frequencia ?: get_option('dw_peso_frequencia_email', 'diario');
+        $hora = $hora !== null ? $hora : (int) get_option('dw_peso_email_hora', 8);
+        $hora = min(23, max(0, $hora));
+
+        // Remove agendamento existente
+        wp_clear_scheduled_hook('dw_verifica_peso_enviar_resumo_email');
+
+        if ($frequencia === 'nenhum') {
+            return;
+        }
+
+        $timestamp = strtotime("today {$hora}:00:00", current_time('timestamp'));
+        if ($timestamp <= current_time('timestamp')) {
+            $timestamp = strtotime('+1 day', $timestamp);
+        }
+
+        $recurrence = $frequencia === 'diario' ? 'daily' : ($frequencia === 'semanal' ? 'weekly' : 'monthly');
+
+        wp_schedule_event($timestamp, $recurrence, 'dw_verifica_peso_enviar_resumo_email', array());
     }
 }
 

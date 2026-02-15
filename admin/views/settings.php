@@ -93,7 +93,63 @@ $dimensao_comprimento_max = get_option('dw_dimensao_comprimento_max', 100);
                             placeholder="<?php esc_attr_e('admin@exemplo.com, estoque@exemplo.com', 'dw-verifica-peso'); ?>"
                         ><?php echo esc_textarea($emails_alerta); ?></textarea>
                         <p class="description">
-                            <?php esc_html_e('Digite os e-mails separados por vírgula que receberão alertas quando produtos com peso anormal ou sem peso forem cadastrados.', 'dw-verifica-peso'); ?>
+                            <?php esc_html_e('Digite os e-mails separados por vírgula que receberão o resumo consolidado de produtos com problemas.', 'dw-verifica-peso'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <?php
+                $frequencia_email = get_option('dw_peso_frequencia_email', 'diario');
+                $email_hora = get_option('dw_peso_email_hora', 8);
+                ?>
+                <tr>
+                    <th scope="row">
+                        <label><?php esc_html_e('Frequência das Notificações', 'dw-verifica-peso'); ?></label>
+                    </th>
+                    <td>
+                        <fieldset>
+                            <label>
+                                <input type="radio" name="dw_peso_frequencia_email" value="diario" <?php checked($frequencia_email, 'diario'); ?>>
+                                <?php esc_html_e('1x ao dia – Resumo diário de erros', 'dw-verifica-peso'); ?>
+                            </label>
+                            <br>
+                            <label>
+                                <input type="radio" name="dw_peso_frequencia_email" value="semanal" <?php checked($frequencia_email, 'semanal'); ?>>
+                                <?php esc_html_e('1x na semana – Resumo semanal de erros', 'dw-verifica-peso'); ?>
+                            </label>
+                            <br>
+                            <label>
+                                <input type="radio" name="dw_peso_frequencia_email" value="mensal" <?php checked($frequencia_email, 'mensal'); ?>>
+                                <?php esc_html_e('1x ao mês – Resumo mensal de erros', 'dw-verifica-peso'); ?>
+                            </label>
+                            <br>
+                            <label>
+                                <input type="radio" name="dw_peso_frequencia_email" value="nenhum" <?php checked($frequencia_email, 'nenhum'); ?>>
+                                <?php esc_html_e('Desativado – Não enviar e-mails', 'dw-verifica-peso'); ?>
+                            </label>
+                        </fieldset>
+                        <p class="description">
+                            <?php esc_html_e('Todas as notificações são enviadas em um único e-mail com a lista completa de produtos com problemas (peso e dimensões).', 'dw-verifica-peso'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr id="dw-email-hora-row" style="<?php echo $frequencia_email === 'nenhum' ? 'display: none;' : ''; ?>">
+                    <th scope="row">
+                        <label for="dw_peso_email_hora"><?php esc_html_e('Horário de envio', 'dw-verifica-peso'); ?></label>
+                    </th>
+                    <td>
+                        <input 
+                            type="number" 
+                            id="dw_peso_email_hora" 
+                            name="dw_peso_email_hora" 
+                            value="<?php echo esc_attr($email_hora); ?>" 
+                            min="0" 
+                            max="23" 
+                            class="small-text"
+                        >
+                        <span><?php esc_html_e('horas (0-23)', 'dw-verifica-peso'); ?></span>
+                        <p class="description">
+                            <?php esc_html_e('Hora do dia em que o e-mail de resumo será enviado (ex: 8 = 8h da manhã).', 'dw-verifica-peso'); ?>
                         </p>
                     </td>
                 </tr>
@@ -325,6 +381,13 @@ $dimensao_comprimento_max = get_option('dw_dimensao_comprimento_max', 100);
                     $('#dw-peso-padrao-fixo-row').show();
                 }
             });
+            $('input[name="dw_peso_frequencia_email"]').on('change', function() {
+                if ($(this).val() === 'nenhum') {
+                    $('#dw-email-hora-row').hide();
+                } else {
+                    $('#dw-email-hora-row').show();
+                }
+            });
         });
         </script>
         
@@ -337,7 +400,7 @@ $dimensao_comprimento_max = get_option('dw_dimensao_comprimento_max', 100);
         <h2><?php esc_html_e('ℹ️ Informações', 'dw-verifica-peso'); ?></h2>
         <ul>
             <li><?php esc_html_e('Os limites de peso e dimensões são aplicados automaticamente ao salvar produtos.', 'dw-verifica-peso'); ?></li>
-            <li><?php esc_html_e('Produtos sem peso ou dimensões também geram alertas e podem receber e-mails de notificação.', 'dw-verifica-peso'); ?></li>
+            <li><?php esc_html_e('O resumo consolidado lista todos os produtos com problemas em um único e-mail, evitando sobrecarregar a caixa de entrada.', 'dw-verifica-peso'); ?></li>
             <li><?php esc_html_e('Você pode visualizar todos os produtos com problemas na página "Verificar Pesos".', 'dw-verifica-peso'); ?></li>
             <li><?php esc_html_e('O peso padrão pode ser calculado automaticamente (mínimo + valor) ou definido como um valor fixo.', 'dw-verifica-peso'); ?></li>
             <li><?php esc_html_e('Na ação em massa "Definir peso padrão", você pode usar o valor configurado ou definir um peso customizado na hora.', 'dw-verifica-peso'); ?></li>

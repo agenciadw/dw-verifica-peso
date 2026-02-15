@@ -132,6 +132,12 @@ final class DW_Verifica_Peso {
         
         // Verifica se WooCommerce está ativo antes de plugins_loaded
         add_action('admin_notices', array($this, 'verificar_woocommerce_notice'));
+
+        // Recorrências customizadas para o cron (semanal e mensal)
+        add_filter('cron_schedules', array($this, 'adicionar_cron_schedules'));
+
+        // Hook para envio do e-mail de resumo consolidado
+        add_action('dw_verifica_peso_enviar_resumo_email', array($this, 'executar_envio_resumo_email'));
     }
 
     /**
@@ -210,10 +216,40 @@ final class DW_Verifica_Peso {
         if (false === get_option('dw_peso_minimo')) {
             update_option('dw_peso_minimo', 0.01);
         }
+        if (false === get_option('dw_peso_frequencia_email')) {
+            update_option('dw_peso_frequencia_email', 'diario');
+        }
+        if (false === get_option('dw_peso_email_hora')) {
+            update_option('dw_peso_email_hora', 8);
+        }
 
         // Limpa cache de transients
         delete_transient('dw_peso_produtos_sem_peso');
         delete_transient('dw_peso_produtos_anormais');
+
+        // Agenda o envio do e-mail de resumo
+        $this->agendar_email_resumo_ativacao();
+    }
+
+    /**
+     * Agenda o e-mail de resumo na ativação (usa options diretamente para evitar dependências)
+     */
+    private function agendar_email_resumo_ativacao() {
+        $frequencia = get_option('dw_peso_frequencia_email', 'diario');
+        $hora = (int) get_option('dw_peso_email_hora', 8);
+        $hora = min(23, max(0, $hora));
+
+        wp_clear_scheduled_hook('dw_verifica_peso_enviar_resumo_email');
+        if ($frequencia === 'nenhum') {
+            return;
+        }
+
+        $timestamp = strtotime("today {$hora}:00:00", current_time('timestamp'));
+        if ($timestamp <= current_time('timestamp')) {
+            $timestamp = strtotime('+1 day', $timestamp);
+        }
+        $recurrence = $frequencia === 'diario' ? 'daily' : ($frequencia === 'semanal' ? 'weekly' : 'monthly');
+        wp_schedule_event($timestamp, $recurrence, 'dw_verifica_peso_enviar_resumo_email', array());
     }
 
     /**
@@ -223,6 +259,41 @@ final class DW_Verifica_Peso {
         // Limpa cache de transients
         delete_transient('dw_peso_produtos_sem_peso');
         delete_transient('dw_peso_produtos_anormais');
+
+        // Remove agendamento do e-mail
+        wp_clear_scheduled_hook('dw_verifica_peso_enviar_resumo_email');
+    }
+
+    /**
+     * Adiciona recorrências customizadas ao cron (semanal e mensal)
+     *
+     * @param array $schedules Schedules existentes
+     * @return array
+     */
+    public function adicionar_cron_schedules($schedules) {
+        $schedules['weekly'] = array(
+            'interval' => WEEK_IN_SECONDS,
+            'display'  => __('Uma vez por semana', 'dw-verifica-peso')
+        );
+        $schedules['monthly'] = array(
+            'interval' => 30 * DAY_IN_SECONDS,
+            'display'  => __('Uma vez por mês', 'dw-verifica-peso')
+        );
+        return $schedules;
+    }
+
+    /**
+     * Executa o envio do e-mail de resumo consolidado (chamado pelo cron)
+     */
+    public function executar_envio_resumo_email() {
+        $frequencia = get_option('dw_peso_frequencia_email', 'diario');
+        if ($frequencia === 'nenhum') {
+            return;
+        }
+        if (!class_exists('DW_Verifica_Peso_Email')) {
+            require_once DW_VERIFICA_PESO_PLUGIN_DIR . 'includes/class-dw-verifica-peso-email.php';
+        }
+        DW_Verifica_Peso_Email::instance()->enviar_email_resumo_consolidado($frequencia);
     }
 
     /**

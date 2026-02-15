@@ -152,10 +152,6 @@ class DW_Verifica_Peso_Validator {
         // Verifica se está fora dos limites
         if ($peso_float > $this->peso_maximo || $peso_float < $this->peso_minimo) {
             $this->registrar_alerta($post_id, $peso_float);
-            
-            // Envia e-mail de alerta
-            $email_handler = DW_Verifica_Peso_Email::instance();
-            $email_handler->enviar_email_alerta($post_id, $peso_float);
         } else {
             // Remove flag de alerta se o peso foi corrigido
             delete_post_meta($post_id, '_dw_peso_alerta');
@@ -190,10 +186,6 @@ class DW_Verifica_Peso_Validator {
 
         if (!$peso || $peso === '') {
             $this->registrar_produto_sem_peso($post_id);
-            
-            // Envia e-mail de alerta para produto sem peso
-            $email_handler = DW_Verifica_Peso_Email::instance();
-            $email_handler->enviar_email_sem_peso($post_id);
         } else {
             // Remove flag se o peso foi adicionado
             delete_post_meta($post_id, '_dw_produto_sem_peso');
